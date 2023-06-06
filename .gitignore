@@ -1,0 +1,8 @@
+.Rhistory
+data
+plots
+extremes_plots
+plots_global_quantile
+plots-*
+.DS_Store
+.Rproj.user
