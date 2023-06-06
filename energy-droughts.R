@@ -207,14 +207,22 @@ for(i in 1:length(periods)){
     lws_droughts_q_all = lws_droughts_q_all |> filter(run_length > 1)
   }
   
-  droughts_q |> write_csv(sprintf('data/droughts/ws_droughts_%s.csv',period_name_noindex))
-  droughts_fixed |> write_csv(sprintf('data/droughts/ws_droughts_fixed_%s.csv',period_name_noindex))
-  wind_droughts_q |> write_csv(sprintf('data/droughts/wind_droughts_%s.csv',period_name_noindex))
-  wind_droughts_fixed |> write_csv(sprintf('data/droughts/wind_droughts_fixed_%s.csv',period_name_noindex))
-  solar_droughts_q |> write_csv(sprintf('data/droughts/solar_droughts_%s.csv',period_name_noindex))
-  solar_droughts_fixed |> write_csv(sprintf('data/droughts/solar_droughts_fixed_%s.csv',period_name_noindex))
-  rl_droughts_q |> write_csv(sprintf('data/droughts/rl_droughts_%s.csv',period_name_noindex))
-  lws_droughts_q |> write_csv(sprintf('data/droughts/lws_droughts_%s.csv',period_name_noindex))
+  droughts_q |> rename(datetime_utc=datetime_local) |> 
+    write_csv(sprintf('data/droughts/ws_droughts_%s.csv',period_name_noindex))
+  droughts_fixed |> rename(datetime_utc=datetime_local) |> 
+    write_csv(sprintf('data/droughts/ws_droughts_fixed_%s.csv',period_name_noindex))
+  wind_droughts_q |> rename(datetime_utc=datetime_local)  |> 
+    write_csv(sprintf('data/droughts/wind_droughts_%s.csv',period_name_noindex))
+  wind_droughts_fixed |> rename(datetime_utc=datetime_local)  |> 
+    write_csv(sprintf('data/droughts/wind_droughts_fixed_%s.csv',period_name_noindex))
+  solar_droughts_q |> rename(datetime_utc=datetime_local)  |> 
+    write_csv(sprintf('data/droughts/solar_droughts_%s.csv',period_name_noindex))
+  solar_droughts_fixed |> rename(datetime_utc=datetime_local)  |> 
+    write_csv(sprintf('data/droughts/solar_droughts_fixed_%s.csv',period_name_noindex))
+  rl_droughts_q |> rename(datetime_utc=datetime_local)  |> 
+    write_csv(sprintf('data/droughts/rl_droughts_%s.csv',period_name_noindex))
+  lws_droughts_q |> rename(datetime_utc=datetime_local)  |> 
+    write_csv(sprintf('data/droughts/lws_droughts_%s.csv',period_name_noindex))
   
   if(period >= 24){
     
