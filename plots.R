@@ -63,7 +63,7 @@ ggsave('plots/map_nerc.png', p_nerc_map, width=11, height=5, dpi=600)
   period_name = '1-hour'
   # message(period_name)
   
-  ba_gen = read_csv(sprintf('data/ba_solar_wind_load_%s.csv',period_name), show=FALSE, progress=FALSE) |> 
+  ba_gen = read_csv(sprintf('data/ba_solar_wind_load_historical_%s.csv',period_name), show=FALSE, progress=FALSE) |> 
     group_by(timezone) |>
     mutate(datetime_local = with_tz(datetime_utc, timezone),
            month = month(datetime_local),
@@ -124,15 +124,18 @@ ggsave('plots/map_nerc.png', p_nerc_map, width=11, height=5, dpi=600)
               solar_cf_q90 = quantile(solar_cf,.9),
               load_cf_q90 = quantile(load_cf,.9),
               month_day = as.POSIXct(sprintf('2000-%02d-%02d',month[1],day[1])),
-              .groups='drop')
+              .groups='drop') |>
+    mutate(load_wind_solar_cf_mean = (wind_cf_mean + solar_cf_mean + load_cf_mean)/3,
+           wind_solar_cf_mean = (wind_cf_mean + solar_cf_mean)/2)
   
   p_month_day = ggplot(month_day_ave) + 
     geom_line(aes(month_day,load_cf_mean, color='load')) + 
     geom_ribbon(aes(month_day,ymin=load_cf_q10,ymax=load_cf_q90, fill='load'), alpha=.2) + 
-    geom_line(aes(month_day,solar_cf_mean, color='solar'), color='darkorange') + 
+    geom_line(aes(month_day,solar_cf_mean, color='solar')) + 
     geom_ribbon(aes(month_day,ymin=solar_cf_q10,ymax=solar_cf_q90, fill='solar'), alpha=.3) + 
     geom_line(aes(month_day,wind_cf_mean, color='wind')) + 
     geom_ribbon(aes(month_day,ymin=wind_cf_q10,ymax=wind_cf_q90, fill='wind'), alpha=.3) + 
+    geom_line(aes(month_day, wind_solar_cf_mean),color='darkgreen') +
     scale_x_datetime(breaks='month', date_labels='%b') +
     facet_wrap(~ba, nrow=3)+
     theme_bw() +

@@ -54,13 +54,16 @@ read_droughts <- function(prefix){
 
 ws_droughts = read_droughts('ws_droughts') |> 
   group_by(ba, period) |> 
-  #mutate(severity = (severity_mwh)/sd(severity_mwh)) |>
   left_join(ba_centroids, by='ba') |>
   mutate(type='')
 lws_droughts = read_droughts('lws_droughts') |> 
   group_by(ba, period) |> 
-  #mutate(severity = (severity_mwh)/sd(severity_mwh)) |>
   left_join(ba_centroids, by='ba')
+
+ws_droughts_fixed = read_droughts('ws_droughts_fixed') |> 
+  group_by(ba, period) |> 
+  left_join(ba_centroids, by='ba') |>
+  mutate(type='')
 
 n_years = ws_droughts$year |> unique() |> length()
 types = c('Wind and Solar Droughts','Load, Wind, and Solar Droughts')
@@ -407,23 +410,23 @@ p_ws_freq_dur_1d = ws_lws_drought_stats_wide |>
   facet_wrap(~period)+
   theme(panel.background=element_rect(fill='#A6CAE0'),
         panel.grid.minor = element_blank(),
-        legend.box = "horizontal",
+        # legend.box = "horizontal",
         # legend.position='bottom',
-        # legend.justification="top",
-        legend.text.align=.5,
-        legend.title.align=.5,
+        legend.justification="left",
+        #legend.text.align=.5,
+        #legend.title.align=.5,
         legend.margin=margin(0,0,0,0),
         # legend.box.margin=margin(-10,-10,-10,-10)
         )+
-  scale_size_continuous('Events\nPer\nYear', range=c(1,15), breaks=c(2,4,6), limits=c(1.2,7))+
+  scale_size_continuous('Events\nPer Year', range=c(1,20), breaks=c(2,4,6), limits=c(1.2,7))+
   guides(size = guide_legend(order = 1, reverse=T))+ 
-  labs(x='Longitude', y='Latitude')+#, title='1-day Coincident Wind and Solar Droughts (maximum duration)')+
+  labs(x='Longitude', y='Latitude', title='1-day Coincident Wind and Solar Droughts (maximum duration)')+
   #coord_map()
   coord_cartesian(xlim=range(states$long),ylim=range(states$lat))
 p_ws_freq_dur_1d
-ggsave('plots-idf/map_ws_freq_dur_1d.png', p_ws_freq_dur_1d, width=9, height=5, dpi=600)
+ggsave('plots-idf/map_ws_freq_dur_1d.png', p_ws_freq_dur_1d, width=8, height=4.2, dpi=600)
 
-p_ws_freq_dur_1h = ws_lws_drought_stats_wide |> 
+ p_ws_freq_dur_1h = ws_lws_drought_stats_wide |> 
   filter(period=='1-hour' & type =='Wind and Solar Droughts') |> 
   #mutate(dur_binned = cut(p90_dur, breaks = 0:6)) |>
   ggplot(aes(lon,lat)) + 
