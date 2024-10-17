@@ -22,13 +22,14 @@ colorblind_ramp <- function(n) {
   colorRampPalette(colorblind_pal()(8)[-1])(n)
 }
 
-wind_config <- read_csv("data/tgw-gen/wind/eia_wind_configs.csv", show = FALSE, progress = FALSE)
-solar_config <- read_csv("data/tgw-gen/solar/eia_solar_configs.csv", show = FALSE, progress = FALSE)
+wind_config <- read_csv("/Volumes/data/tgw-gen-historical/wind/eia_wind_configs.csv", show = FALSE, progress = FALSE)
+solar_config <- read_csv("/Volumes/data/tgw-gen-historical/solar/eia_solar_configs.csv", show = FALSE, progress = FALSE)
 configs <- bind_rows(
   wind_config |> mutate(type = "wind"),
   solar_config |> mutate(type = "solar")
 ) |>
-  mutate(ba = case_when(ba == "ERCO" ~ "ERCOT",
+  mutate(ba = case_when(
+    ba == "ERCO" ~ "ERCOT",
     ba == "ISNE" ~ "ISONE",
     ba == "NYIS" ~ "NYISO",
     .default = ba
@@ -71,6 +72,16 @@ lws_droughts <- read_droughts("lws_droughts") |>
   left_join(ba_centroids, by = "ba")
 
 ws_droughts_fixed <- read_droughts("ws_droughts_fixed") |>
+  group_by(ba, period) |>
+  left_join(ba_centroids, by = "ba") |>
+  mutate(type = "")
+
+wind_droughts_fixed <- read_droughts("wind_droughts_fixed") |>
+  group_by(ba, period) |>
+  left_join(ba_centroids, by = "ba") |>
+  mutate(type = "")
+
+solar_droughts_fixed <- read_droughts("solar_droughts_fixed") |>
   group_by(ba, period) |>
   left_join(ba_centroids, by = "ba") |>
   mutate(type = "")
@@ -287,7 +298,7 @@ p_lws_frequency <-
   summarise(frequency = n() / n_years, .groups = "drop") |>
   mutate(period = factor(period, levels = periods |> names() |> substr(3, 10))) |>
   arrange(period, frequency) |>
-  mutate(ba = factor(ba, levels = levels(ws_freq))) |>
+  mutate(ba = fct_reorder(ba, frequency, .desc = TRUE)) |>
   ggplot() +
   geom_bar(aes(period, frequency, fill = ba), stat = "identity", position = "dodge") +
   scale_fill_manual("BA", values = colorblind_ramp(ws_droughts$ba |> unique() |> length())) +
@@ -544,7 +555,7 @@ p_ws_freq_dur_1d <- ws_lws_drought_stats_wide |>
   # mutate(dur_binned = cut(p90_dur, breaks = 0:6)) |>
   ggplot(aes(lon, lat)) +
   geom_polygon(aes(long, lat, group = group), fill = "#E3DEBF", data = world) +
-  geom_polygon(aes(long, lat, group = group), color = "white", fill = grey(.6), data = states, size = .2) +
+  geom_polygon(aes(long, lat, group = group), color = "white", fill = grey(.6), data = states, linewidth = .2) +
   geom_point(aes(size = frequency, color = max_dur), alpha = .8) +
   geom_point(aes(size = frequency), shape = 1, color = "black") +
   geom_label(aes(lon, lat, label = ba), size = 3, label.size = 0.1, data = ba_labels) +
@@ -557,8 +568,8 @@ p_ws_freq_dur_1d <- ws_lws_drought_stats_wide |>
   theme(
     panel.background = element_rect(fill = "#A6CAE0"),
     panel.grid.minor = element_blank(),
-    # legend.box = "horizontal",
-    # legend.position='bottom',
+    legend.box = "horizontal",
+    legend.position = "bottom",
     legend.justification = "left",
     # legend.text.align=.5,
     # legend.title.align=.5,
@@ -569,7 +580,7 @@ p_ws_freq_dur_1d <- ws_lws_drought_stats_wide |>
   guides(size = guide_legend(order = 1, reverse = T)) +
   labs(x = "Longitude", y = "Latitude") + # , title = "1-day Coincident Wind and Solar Droughts (maximum duration)") +
   # coord_map()
-  coord_cartesian(xlim = range(states$long), ylim = range(states$lat))
+  coord_cartesian(xlim = range(states$long) + c(2, -2), ylim = range(states$lat))
 p_ws_freq_dur_1d
 ggsave("plots-idf/map_ws_freq_dur_1d.png", p_ws_freq_dur_1d, width = 8, height = 4.2, dpi = 600)
 
@@ -584,7 +595,10 @@ p_ws_freq_dur_1h <- ws_lws_drought_stats_wide |>
   geom_point(aes(size = frequency), shape = 1, color = "black") +
   geom_label(aes(lon, lat, label = ba), size = 3, label.size = 0.1, data = ba_labels) +
   # facet_grid(~type)+
-  scale_color_stepsn("Drought\nDuration\n(Days)", colors = colorblind_pal()(8)[1:8], limits = c(0.5, 1.5), n.breaks = 5) +
+  scale_color_stepsn("Drought\nDuration\n(Days)",
+    colors = colorblind_pal()(8)[1:8],
+    limits = c(0.5, 1.5), n.breaks = 5
+  ) +
   # scale_color_viridis_c(option='H')+
   scale_size_continuous("Events\nPer Year", range = c(1, 18), breaks = c(5, 9, 13), limits = c(4, 15)) +
   # scale_color_stepsn('Drought\nDuration\n(Days)', colors=brewer.pal(6,'YlOrRd'), limits=c(0,5), n.breaks=6)+
@@ -603,8 +617,9 @@ p_ws_freq_dur_1h <- ws_lws_drought_stats_wide |>
   theme(
     panel.background = element_rect(fill = "#A6CAE0"),
     panel.grid.minor = element_blank(),
-    # legend.box = "horizontal",
-    # legend.position='bottom',
+    legend.box = "horizontal",
+    legend.position = "bottom",
+    legend.justification = "left",
     # legend.text.align = .5,
     # legend.title.align = .5,
     legend.margin = margin(0, 0, 0, 0),
@@ -613,14 +628,14 @@ p_ws_freq_dur_1h <- ws_lws_drought_stats_wide |>
   guides(size = guide_legend(order = 1, reverse = T)) +
   labs(x = "Longitude", y = "Latitude") + # , title='1-day Coincident Wind and Solar Droughts (maximum duration)')+
   # coord_map()
-  coord_cartesian(xlim = range(states$long), ylim = range(states$lat))
+  coord_cartesian(xlim = range(states$long) + c(2, -2), ylim = range(states$lat))
 p_ws_freq_dur_1h
 ggsave("plots-idf/map_ws_freq_dur_1h.png", p_ws_freq_dur_1h, width = 9, height = 5, dpi = 600)
 
 
 p_ws_freq_dur_1h_1d <- ggarrange(p_ws_freq_dur_1h, p_ws_freq_dur_1d, nrow = 1)
 p_ws_freq_dur_1h_1d
-ggsave("plots-idf/map_ws_freq_dur_1h_1d.png", width = 15, height = 4, dpi = 600)
+ggsave("plots-idf/map_ws_freq_dur_1h_1d.png", width = 13, height = 5, dpi = 600)
 
 
 p_ws_freq_dur_multiple <- ws_lws_drought_stats_wide |>

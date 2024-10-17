@@ -33,6 +33,7 @@ upper_thresh <- 1 - lower_thresh
 # run the sensitivity analysis and produce plots (takes a while)
 do_sensitivity <- FALSE
 
+ba_gen_all <- list()
 for (i in 1:length(periods)) {
   period <- periodi <- periods[i]
   period_name <- names(periods)[i]
@@ -89,7 +90,8 @@ for (i in 1:length(periods)) {
       srli_load_fixed = sdei(load_norm)
     ) |>
     ungroup() |>
-    mutate(ba = case_when(ba == "ERCO" ~ "ERCOT",
+    mutate(ba = case_when(
+      ba == "ERCO" ~ "ERCOT",
       ba == "ISNE" ~ "ISONE",
       ba == "NYIS" ~ "NYISO",
       .default = ba
@@ -100,6 +102,40 @@ for (i in 1:length(periods)) {
     length()
 
 
+  #   ba_gen_all[[period_name]] <- ba_gen |> mutate(period_name = period_name)
+  # }
+  #
+  # ba_gen <- bind_rows(ba_gen_all) |>
+  #   mutate(
+  #     month = month(datetime_utc),
+  #     day = day(datetime_utc),
+  #     hour = hour(datetime_utc)
+  #   )
+  # quantile_diff <- ba_gen |>
+  #   group_by(period_name, month, day, hour) |>
+  #   summarise(
+  #     solar_q10 = quantile(solar_cf, .1),
+  #     solar_q50 = quantile(solar_cf, .5),
+  #     wind_q10 = quantile(wind_cf, .1),
+  #     wind_q50 = quantile(wind_cf, .5),
+  #     solar_diff = solar_q50 - solar_q10,
+  #     wind_diff = wind_q50 - wind_q10
+  #   ) |>
+  #   mutate(plot_date = ISOdatetime(2020, month, day, hour, 0, 0, tz = "UTC"))
+  # ggplot(quantile_diff) +
+  #   geom_line(aes(plot_date, wind_diff, color = period_name), linewidth = 1) +
+  #   theme_bw() +
+  #   scale_x_datetime(date_breaks = "months", date_labels = "%b", minor_breaks = NULL, expand = c(0, 0)) +
+  #   scale_y_continuous(expand = c(0, 0)) +
+  #   labs(x = "", y = "Wind difference between q10 and q50")
+  # ggplot(quantile_diff) +
+  #   geom_line(aes(plot_date, solar_diff, color = period_name)) +
+  #   scale_x_datetime(date_breaks = "months", date_labels = "%b", minor_breaks = NULL, expand = c(0, 0)) +
+  #   scale_y_continuous(expand = c(0, 0)) +
+  #   theme_bw() +
+  #   labs(x = "", y = "Solar difference between q10 and q50")
+  #
+  # if (FALSE) {
   ####################################
   ####################################
   ####################################
@@ -212,23 +248,49 @@ for (i in 1:length(periods)) {
   lws_droughts_q_all <- ba_gen |> energy_drought(srepi_wind < -1.28 & srepi_solar < -1.28 & srli_load > 1.28)
   lws_droughts_q <- energy_drought_filter(lws_droughts_q_all)
 
+  # wind and solar non-coincident
+  ws_droughts_nc_all <- ba_gen |>
+    mutate(srepi_wind = dplyr::lag(srepi_wind, 364 / 2)) |>
+    energy_drought(srepi_wind < -1.28 & srepi_solar < -1.28)
+  ws_droughts_nc <- energy_drought_filter(ws_droughts_nc_all)
+
+  # wind and solar fixed threshold non-coincident
+  ws_droughts_nc_fixed_all <- ba_gen |>
+    mutate(srepi_wind_fixed = dplyr::lag(srepi_wind_fixed, 364 / 2)) |>
+    energy_drought(srepi_wind_fixed < -1.28 & srepi_solar_fixed < -1.28)
+  ws_droughts_nc_fixed <- energy_drought_filter(ws_droughts_nc_fixed_all)
 
   # dont allow single hour droughts
   if (period_name_noindex == "1-hour") {
     droughts_q <- droughts_q |> filter(run_length > 1)
     droughts_q_all <- droughts_q_all |> filter(run_length > 1)
 
+    droughts_fixed <- droughts_fixed |> filter(run_length > 1)
+    droughts_fixed_all <- droughts_fixed_all |> filter(run_length > 1)
+
     wind_droughts_q <- wind_droughts_q |> filter(run_length > 1)
     wind_droughts_q_all <- wind_droughts_q_all |> filter(run_length > 1)
 
+    wind_droughts_fixed <- wind_droughts_fixed |> filter(run_length > 1)
+    wind_droughts_fixed_all <- wind_droughts_fixed_all |> filter(run_length > 1)
+
     solar_droughts_q <- solar_droughts_q |> filter(run_length > 1)
     solar_droughts_q_all <- solar_droughts_q_all |> filter(run_length > 1)
+
+    solar_droughts_fixed <- solar_droughts_fixed |> filter(run_length > 1)
+    solar_droughts_fixed_all <- solar_droughts_fixed_all |> filter(run_length > 1)
 
     rl_droughts_q <- rl_droughts_q |> filter(run_length > 1)
     rl_droughts_q_all <- rl_droughts_q_all |> filter(run_length > 1)
 
     lws_droughts_q <- lws_droughts_q |> filter(run_length > 1)
     lws_droughts_q_all <- lws_droughts_q_all |> filter(run_length > 1)
+
+    ws_droughts_nc <- ws_droughts_nc |> filter(run_length > 1)
+    ws_droughts_nc_all <- ws_droughts_nc_all |> filter(run_length > 1)
+
+    ws_droughts_nc_fixed <- ws_droughts_nc_fixed |> filter(run_length > 1)
+    ws_droughts_nc_fixed_all <- ws_droughts_nc_fixed_all |> filter(run_length > 1)
   }
 
   droughts_q |>
@@ -255,7 +317,73 @@ for (i in 1:length(periods)) {
   lws_droughts_q |>
     rename(datetime_utc = datetime_local) |>
     write_csv(sprintf("data/droughts/lws_droughts_%s.csv", period_name_noindex))
+  ws_droughts_nc |>
+    rename(datetime_utc = datetime_local) |>
+    write_csv(sprintf("data/droughts/ws_droughts_nc_%s.csv", period_name_noindex))
+  ws_droughts_nc_fixed |>
+    rename(datetime_utc = datetime_local) |>
+    write_csv(sprintf("data/droughts/ws_droughts_nc_fixed_%s.csv", period_name_noindex))
 
+  ########################################################################################
+  # coincident vs non-coincident
+  ########################################################################################
+  coincidence <- bind_rows(
+    wind_droughts_fixed |> mutate(drought_type = "Wind"),
+    solar_droughts_fixed |> mutate(drought_type = "Solar"),
+    droughts_fixed |> mutate(drought_type = "Wind & Solar Coincident"),
+    ws_droughts_nc_fixed |> mutate(drought_type = "Wind & Solar Non-Coincident"),
+  )
+
+  p_coincident_duration <- coincidence |> ggplot() +
+    geom_density(aes(run_length_days, color = drought_type), bw = .5, linewidth = 1.5) +
+    coord_cartesian(xlim = c(1, 6)) +
+    scale_x_continuous(breaks = 1:10) +
+    theme_bw() +
+    scale_color_manual("Drought Type", values = colorblind_pal()(8)[c(2:4, 7)]) +
+    theme(
+      legend.position = "top",
+      panel.grid = element_blank()
+    ) +
+    labs(y = "Probability density", x = "Drought Duration [days]")
+  p_coincident_duration
+  ggsave(sprintf("plots-ed/coincident_duration_%s.png", period_name), p_coincident_duration, width = 7, height = 4, dpi = 600)
+
+  p_coincident_severity <- coincidence |> ggplot() +
+    geom_density(aes(severity_ws, color = drought_type), linewidth = 1.5) +
+    # coord_cartesian(xlim = c(1, 6)) +
+    # scale_x_continuous(breaks = 1:10) +
+    theme_bw() +
+    scale_color_manual("Drought Type", values = colorblind_pal()(8)[c(2:4, 7)]) +
+    theme(
+      legend.position = "top",
+      panel.grid = element_blank()
+    ) +
+    labs(y = "Probability density", x = "Standardized Drought Severity [days]")
+  p_coincident_severity
+  ggsave(sprintf("plots-ed/coincident_severity_%s.png", period_name), p_coincident_severity, width = 7, height = 4, dpi = 600)
+
+  p_coincident_frequency <- coincidence |>
+    group_by(drought_type, year) |>
+    summarise(events_per_year = n(), .groups = "drop") |>
+    ggplot() +
+    geom_density(aes(events_per_year, color = drought_type), linewidth = 1.5) +
+    xlim(0, 500) +
+    # coord_cartesian(xlim = c(1, 6)) +
+    # scale_x_continuous(breaks = 1:10) +
+    theme_bw() +
+    scale_color_manual("Drought Type", values = colorblind_pal()(8)[c(2:4, 7)]) +
+    theme(
+      legend.position = "top",
+      panel.grid = element_blank()
+    ) +
+    labs(y = "Probability density", x = "Frequency [Events per year]")
+  p_coincident_frequency
+  ggsave(sprintf("plots-ed/coincident_frequency_%s.png", period_name), p_coincident_frequency, width = 7, height = 4, dpi = 600)
+
+
+  ########################################################################################
+  # plots that only work for daily duration or longer
+  ########################################################################################
   if (period >= 24) {
     droughts_mwh_all <- ba_gen |> energy_drought(wind_gen_mwh < wind_q10 & solar_gen_mwh <= solar_q10)
     droughts_mwh <- energy_drought_filter(droughts_q_all)

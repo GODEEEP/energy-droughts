@@ -1,8 +1,11 @@
 # install.packages(c('import','xfun'))
 library(tidyverse)
 library(RColorBrewer)
+library(sf)
+library(ggfx)
 import::from(sf, read_sf, st_transform, st_as_sf, st_intersects)
 import::from(ggthemes, colorblind_pal)
+import::from(egg, ggarrange)
 
 periods <- c("1-hour" = 1, "4-hour" = 4, "12-hour" = 12, "1-day" = 24, "2-day" = 48, "3-day" = 72, "5-day" = 120)
 
@@ -20,6 +23,42 @@ p_ba_map <- ggplot(ba_sf |> filter(COMP_ABRV %in% c("BPA", "CALISO", "IDPC", "PN
   labs(x = "", y = "")
 p_ba_map
 ggsave("plots/map_ba.png", p_ba_map, width = 11, height = 10, dpi = 600)
+
+
+ba_sf <- read_sf("data/Elec_Control_Areas_BA")
+states <- map_data("state")
+p_ba_map <-
+  # ggplot(ba_sf)+
+  ggplot(ba_sf |> filter(COMP_ABRV %in% c(
+    "BPA", "CALISO", "ERCISO", "IDPC", "ISONE", "MISOS",
+    "MTPC", "NYISO", "PACW", "PACE", "PJMISO", "PNM", "PSCO",
+    "SWPS", "WAPMON"
+  ))) +
+  geom_polygon(aes(long, lat, group = group), color = "black", fill = "white", data = states) +
+  geom_sf(aes(fill = COMP_ABRV)) +
+  geom_sf_label(aes(label = COMP_ABRV)) +
+  # scale_fill_manual("BA", values = colorblind_pal()(6)[-1]) +
+  coord_sf(xlim = c(-125, -60), ylim = c(25, 50)) +
+  theme_bw() +
+  labs(x = "", y = "") +
+  theme(legend.position = "None")
+p_ba_map
+ggsave("plots/map_ba.png", p_ba_map, width = 11, height = 10, dpi = 600)
+
+ba_sf2 <- read_sf("data/Control__Areas/Control__Areas2.shp")
+p_ba_map2 <-
+  # ggplot(ba_sf)+
+  ggplot(ba_sf2) +
+  geom_polygon(aes(long, lat, group = group), color = "black", fill = "white", data = states) +
+  geom_sf(aes(fill = NAME)) +
+  geom_sf_label(aes(label = NAME)) +
+  # scale_fill_manual("BA", values = colorblind_pal()(6)[-1]) +
+  coord_sf(xlim = c(-125, -60), ylim = c(25, 50)) +
+  theme_bw() +
+  labs(x = "", y = "") +
+  theme(legend.position = "None")
+p_ba_map2
+ggsave("plots/map_ba2.png", p_ba_map, width = 11, height = 10, dpi = 600)
 
 wind_config <- read_csv("data/tgw-gen/wind/eia_wind_configs.csv", show = FALSE, progress = FALSE)
 solar_config <- read_csv("data/tgw-gen/solar/eia_solar_configs.csv", show = FALSE, progress = FALSE)
@@ -259,23 +298,126 @@ p_wind_solar_points <- ggplot(config_min_sites) +
   # geom_polygon(aes(lon,lat,color=ba,fill=ba),alpha=.3,data=chull_points) +
   geom_label(aes(x = lon, y = lat, label = ba), data = chull_centroids, alpha = .5, size = 3) +
   facet_wrap(~ttype, ncol = 1) +
-  coord_equal() +
+  coord_map() +
+  # coord_sf(crs=sf::st_crs(4326),xlim=c(-122.5, -69.5), ylim=c(26, 48.5)) +
+  # coord_map(projection='lambert', lat0=30, lat1=45, xlim=c(-118, -76), ylim=c(26.8, 50), clip='on') +
+  # coord_quickmap(xlim=c(-130, -70), ylim=c(25, 50), clip='on') +
   labs(x = "Longitude", y = "Latitude")
 p_wind_solar_points
-ggsave("plots/ba_map_points.png", p_wind_solar_points, width = 10, height = 8)
+ggsave("plots/ba_map_points.png", p_wind_solar_points, width = 6.5, height = 6)
 
 
-p_wind_solar_plant_map <- ggplot(configs |> mutate(type = factor(type, levels = c("solar", "wind")))) +
-  geom_polygon(aes(long, lat, group = group), color = "black", fill = "white", data = states) +
-  geom_point(aes(lon, lat, color = type, shape = type), size = 1) +
-  theme_bw() +
-  scale_color_manual("", values = colorblind_pal()(3)[-1]) +
-  coord_equal() +
-  scale_shape_manual("", values = c(1, 2)) +
-  labs(x = "Longitude", y = "Latitude")
-p_wind_solar_plant_map
-ggsave("plots/map_points.png", p_wind_solar_plant_map, width = 8, height = 3.5)
+states_sf <- st_read("/Volumes/data/shapefiles/cb_2018_us_state_5m/cb_2018_us_state_5m.shp") |>
+  filter(!(STUSPS %in% c("HI", "VI", "DC", "GU", "MP", "AS", "PR", "AK")))
 
+map_bas <- tribble(
+  ~id, ~ba,
+  1738, "BPA",
+  2775, "CISO",
+  5723, "ERCOT",
+  # 3046,  'DUKE',
+  13434, "ISONE",
+  # 14378,  'PACW',
+  # 14379,  'PACE',
+  # 15466,  'PSCO',
+  # 15473,  'PSNM',
+  # 18642,  'TVA',
+  # 19610,  'WAPAW',
+  # 25471,  'WAPAD',
+  # 28503,  'WAPASW',
+  56669, "MISO",
+  # 29304,  'SEPA',
+  59504, "SWPP"
+)
+
+ba_sf_map <- st_transform(ba_sf2 |> filter(ID %in% map_bas$id), 4326) |>
+  mutate(short_name = map_bas$ba)
+
+ws_points <- configs |>
+  mutate(type = factor(type, levels = c("solar", "wind"))) |>
+  st_as_sf(coords = c("lon", "lat"), crs = 4326)
+
+p_wind_solar_plant_map1 <- ggplot() +
+  with_shadow(
+    geom_sf(color = grey(.7), linewidth = .3, fill = "white", data = states_sf),
+    alpha = 0,
+    sigma = 4,
+    colour = grey(.9)
+  ) +
+  geom_sf(aes(fill = short_name),
+    alpha = .8, data = ba_sf_map,
+    color = "white", linewidth = .3
+  ) +
+  geom_sf(color = grey(.7), linewidth = .3, fill = NA, alpha = 0.5, data = states_sf) +
+  # geom_sf(aes(shape = type, color = type), size = 1, data = ws_points) +
+  # geom_sf(size = 1, data = ws_points |> filter(type == "wind"), color = colorblind_pal()(8)[7], shape = 17) +
+  # guides(fill = "none") +
+  theme_minimal() +
+  # scale_fill_viridis_d('',option = "G") +
+  scale_fill_brewer("", palette = "BrBG") +
+  scale_color_manual("", values = colorblind_pal()(8)[c(1, 7)]) +
+  # coord_map("conic", lat0 = 30) +
+  coord_sf(crs = 2163) +
+  scale_shape_manual("", values = c(16, 17)) + # c(1, 2)) + c(16, 17)
+  labs(x = "Longitude", y = "Latitude") +
+  scale_x_continuous(breaks = NULL, expand = c(0, 0)) +
+  scale_y_continuous(breaks = NULL, expand = c(0, 0)) +
+  theme(
+    panel.border = element_blank(),
+    panel.grid = element_blank(),
+    legend.position = c(.5, 1),
+    legend.background = element_blank(),
+    legend.direction = "horizontal",
+    axis.ticks = element_blank(),
+    axis.text = element_blank()
+  ) +
+  guides(fill = guide_legend(nrow = 2)) +
+  labs(x = "", y = "")
+# p_wind_solar_plant_map1
+# ggsave("plots/map_points.png", p_wind_solar_plant_map, width = 8, height = 5, dpi = 600)
+
+
+p_wind_solar_plant_map2 <- ggplot() +
+  with_shadow(
+    geom_sf(color = grey(.7), linewidth = .3, fill = "white", data = states_sf),
+    alpha = 0,
+    sigma = 4,
+    colour = grey(.9)
+  ) +
+  # geom_sf(aes(fill = short_name),
+  #         alpha = .8, data = ba_sf_map,
+  #         color = "white", linewidth = .3
+  # ) +
+  geom_sf(color = grey(.7), linewidth = .3, fill = NA, alpha = 0.5, data = states_sf) +
+  geom_sf(aes(shape = type, color = type), size = 1, data = ws_points) +
+  geom_sf(size = 1, data = ws_points |> filter(type == "wind"), color = colorblind_pal()(8)[7], shape = 17) +
+  # guides(fill = "none") +
+  theme_minimal() +
+  # scale_fill_viridis_d('',option = "G") +
+  scale_fill_brewer("", palette = "BrBG") +
+  scale_color_manual("", values = colorblind_pal()(8)[c(1, 7)]) +
+  # coord_map("conic", lat0 = 30) +
+  coord_sf(crs = 2163) +
+  scale_shape_manual("", values = c(16, 17)) + # c(1, 2)) + c(16, 17)
+  labs(x = "Longitude", y = "Latitude") +
+  scale_x_continuous(breaks = NULL, expand = c(0, 0)) +
+  scale_y_continuous(breaks = NULL, expand = c(0, 0)) +
+  theme(
+    panel.border = element_blank(),
+    panel.grid = element_blank(),
+    legend.position = c(.5, 1),
+    legend.background = element_blank(),
+    legend.direction = "horizontal",
+    axis.ticks = element_blank(),
+    axis.text = element_blank()
+  ) +
+  labs(x = "", y = "")
+# p_wind_solar_plant_map2
+# ggsave("plots/map_points.png", p_wind_solar_plant_map, width = 8, height = 5, dpi = 600)
+
+ragg::agg_png("plots/map_points.png", width = 12, height = 4.5, res = 600, units = "in")
+ggarrange(p_wind_solar_plant_map2, p_wind_solar_plant_map1, nrow = 1)
+dev.off()
 
 pwind <- ggplot(NULL, aes(c(-3, 3))) +
   geom_area(stat = "function", fun = dnorm, fill = "#56B4E9", xlim = c(-3, -1.28)) +
