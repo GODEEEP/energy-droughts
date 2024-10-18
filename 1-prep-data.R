@@ -5,11 +5,20 @@ import::from(jsonlite, read_json)
 import::from(data.table, melt.data.table, as.data.table, setnames, merge.data.table, setkey)
 import::from(ggthemes, colorblind_pal)
 
+options(
+  readr.show_progress = FALSE,
+  readr.show_col_types = FALSE,
+  pillar.width = 1e6
+)
+
 source("lib.R")
 
 periods <- c("1-hour" = 1, "4-hour" = 4, "12-hour" = 12, "1-day" = 24, "2-day" = 48, "3-day" = 72, "5-day" = 120)
 min_sites_per_ba <- 5
 start_year <- 1980
+
+gen_data_path <- "/Volumes/data/tgw-gen-historical/"
+load_data_path <- "/Volumes/data/tell/tell-historic-load/"
 
 # metadata
 message("Reading metadata")
@@ -20,15 +29,12 @@ solar_config <- read_csv("data/tgw-gen/solar/eia_solar_configs.csv", show = FALS
 # generation data
 message("Reading scenario data")
 scenario <- "historical"
-solar_fns <- list.files("data/tgw-gen/solar/historical_bc", "*solar*", full.names = TRUE)
-wind_fns <- list.files("data/tgw-gen/wind/historical", "*wind*", full.names = TRUE)
-load_fns <- list.files("data/tell/historic", "TELL_Bal*", recursive = TRUE, full.names = TRUE)
+solar_fns <- list.files(file.path(gen_data_path, "solar/historical_bc"), "*solar*", full.names = TRUE)
+wind_fns <- list.files(file.path(gen_data_path, "wind/historical"), "*wind*", full.names = TRUE)
+load_fns <- list.files(load_data_path, "TELL_Bal*", recursive = TRUE, full.names = TRUE)
 
-solar_list <- wind_list <- load_list <- list()
-
-for (fn in solar_fns) solar_list[[fn]] <- read_csv(fn, show = FALSE, progress = FALSE)
-for (fn in wind_fns) wind_list[[fn]] <- read_csv(fn, show = FALSE, progress = FALSE)
-for (fn in load_fns) load_list[[fn]] <- read_csv(fn, show = FALSE, progress = FALSE)
+# read solar data
+solar_list <- map(solar_fns, read_csv, .progress = TRUE) |> `names<-`(solar_fns)
 
 # add back in the last day of the year in leap days, just duplicate the day before
 solar_years <- names(solar_list) |>
@@ -46,6 +52,11 @@ for (y in solar_years) {
     solar_list[[yeari]] <- bind_rows(solar_list[[yeari]], last_day)
   }
 }
+solar_wide <- bind_rows(solar_list)
+rm(solar_list)
+
+# read wind data
+wind_list <- map(wind_fns, read_csv, .progress = TRUE)|> `names<-`(wind_fns)
 wind_years <- names(solar_list) |>
   basename() |>
   tools::file_path_sans_ext() |>
@@ -62,11 +73,12 @@ for (y in wind_years) {
   }
 }
 
-
-solar_wide <- bind_rows(solar_list)
 # temp fix for names, delete if the header data gets recomputed
 # names(solar_wide)[2:ncol(solar_wide)] = paste0(names(solar_wide)[-1],'_',0:(ncol(solar_wide)-2))
 wind_wide <- bind_rows(wind_list)
+rm(wind_list)
+
+load_list <- map(load_fns, read_csv, .progress = TRUE)|> `names<-`(load_fns)
 # load data is hour beginning
 load_long <- bind_rows(load_list) |>
   rename(
